@@ -24,41 +24,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Rate Limiting: Max 5 OTP sends per 5 minutes per target, and max 15 per IP
-    const targetLimit = checkRateLimit(`otp_send_target_${type}_${target.trim().toLowerCase()}`, {
-      limit: 5,
-      windowSeconds: 300,
-    });
+    const cleanTarget = target.trim().toLowerCase();
+    const isTestTarget =
+      cleanTarget.replace(/\D/g, "") === "1122334455" ||
+      cleanTarget === "example@gmail.com" ||
+      cleanTarget === "example@kiit.ac.in";
 
-    if (!targetLimit.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Too many OTP requests. Please wait ${targetLimit.resetInSeconds} seconds before requesting a new code.`,
-        },
-        { status: 429, headers: { "Retry-After": String(targetLimit.resetInSeconds) } }
-      );
-    }
+    // Rate Limiting: Max 5 OTP sends per 5 minutes per target, and max 15 per IP (bypassed for test account)
+    if (!isTestTarget) {
+      const targetLimit = checkRateLimit(`otp_send_target_${type}_${cleanTarget}`, {
+        limit: 5,
+        windowSeconds: 300,
+      });
 
-    const ipLimit = checkRateLimit(`otp_send_ip_${ip}`, {
-      limit: 15,
-      windowSeconds: 300,
-    });
+      if (!targetLimit.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Too many OTP requests. Please wait ${targetLimit.resetInSeconds} seconds before requesting a new code.`,
+          },
+          { status: 429, headers: { "Retry-After": String(targetLimit.resetInSeconds) } }
+        );
+      }
 
-    if (!ipLimit.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Too many requests from this network. Please retry in ${ipLimit.resetInSeconds} seconds.`,
-        },
-        { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } }
-      );
+      const ipLimit = checkRateLimit(`otp_send_ip_${ip}`, {
+        limit: 15,
+        windowSeconds: 300,
+      });
+
+      if (!ipLimit.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Too many requests from this network. Please retry in ${ipLimit.resetInSeconds} seconds.`,
+          },
+          { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } }
+        );
+      }
     }
 
     const result = await OtpService.sendOtp(target, type);
 
     return NextResponse.json({
       success: true,
+      verificationId: result.verificationId,
       data: result,
       message: result.message,
     });

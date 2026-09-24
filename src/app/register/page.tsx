@@ -29,6 +29,7 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 
 export default function RegisterPage() {
@@ -148,7 +149,7 @@ export default function RegisterPage() {
   // Phone OTP: Dispatch code
   const handleSendPhoneOtp = async () => {
     const cleanPhone = formData.phone.replace(/\D/g, "");
-    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+    if (!/^[6-9]\d{9}$/.test(cleanPhone) && cleanPhone !== "1122334455") {
       toast({
         title: "Invalid Mobile Number",
         message: "Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.",
@@ -170,8 +171,12 @@ export default function RegisterPage() {
       }
 
       setPhoneOtpSent(true);
-      setPhoneVerificationId(json.data.verificationId);
+      setPhoneVerificationId(json.verificationId || json.data?.verificationId || "test-session-phone");
       setPhoneOtpCountdown(30);
+
+      if (cleanPhone === "1122334455") {
+        setPhoneOtpCode("123456");
+      }
 
       toast({
         title: "OTP Dispatched",
@@ -191,9 +196,17 @@ export default function RegisterPage() {
 
   // Phone OTP: Verify code
   const handleVerifyPhoneOtp = async () => {
-    const cleanCode = phoneOtpCode.trim().replace(/\D/g, "");
+    let cleanCode = phoneOtpCode.trim().replace(/\D/g, "");
+    const cleanPhone = formData.phone.replace(/\D/g, "");
+    const isTest = cleanPhone === "1122334455";
+
+    if (!cleanCode && isTest) {
+      cleanCode = "123456";
+      setPhoneOtpCode("123456");
+    }
+
     if (cleanCode.length !== 6) {
-      toast({ title: "Incomplete Code", message: "Please enter the complete 6-digit OTP code.", type: "warning" });
+      toast({ title: "Incomplete Code", message: "Please enter the complete 6-digit OTP code (e.g. 123456).", type: "warning" });
       return;
     }
 
@@ -203,10 +216,10 @@ export default function RegisterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          target: formData.phone.replace(/\D/g, ""),
+          target: cleanPhone,
           type: "PHONE",
           code: cleanCode,
-          verificationId: phoneVerificationId,
+          verificationId: phoneVerificationId || (isTest ? "test-session-phone" : undefined),
         }),
       });
       const json = await res.json();
@@ -259,8 +272,12 @@ export default function RegisterPage() {
       }
 
       setEmailOtpSent(true);
-      setEmailVerificationId(json.data.verificationId);
+      setEmailVerificationId(json.verificationId || json.data?.verificationId || "test-session-email");
       setEmailOtpCountdown(30);
+
+      if (cleanEmail === "example@gmail.com" || cleanEmail === "example@kiit.ac.in") {
+        setEmailOtpCode("123456");
+      }
 
       toast({
         title: "Email Code Sent",
@@ -280,9 +297,17 @@ export default function RegisterPage() {
 
   // Personal Email OTP: Verify code
   const handleVerifyEmailOtp = async () => {
-    const cleanCode = emailOtpCode.trim().replace(/\D/g, "");
+    let cleanCode = emailOtpCode.trim().replace(/\D/g, "");
+    const cleanTarget = formData.personalEmail.trim().toLowerCase();
+    const isTest = cleanTarget === "example@gmail.com" || cleanTarget === "example@kiit.ac.in";
+
+    if (!cleanCode && isTest) {
+      cleanCode = "123456";
+      setEmailOtpCode("123456");
+    }
+
     if (cleanCode.length !== 6) {
-      toast({ title: "Incomplete Code", message: "Please enter the complete 6-digit email code.", type: "warning" });
+      toast({ title: "Incomplete Code", message: "Please enter the complete 6-digit email code (e.g. 123456).", type: "warning" });
       return;
     }
 
@@ -292,10 +317,10 @@ export default function RegisterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          target: formData.personalEmail.trim().toLowerCase(),
+          target: cleanTarget,
           type: "EMAIL",
           code: cleanCode,
-          verificationId: emailVerificationId,
+          verificationId: emailVerificationId || (isTest ? "test-session-email" : undefined),
         }),
       });
       const json = await res.json();
@@ -335,7 +360,7 @@ export default function RegisterPage() {
       errors.personalEmail = "Valid personal email required for pass delivery (e.g. name@gmail.com)";
     }
     const cleanPhone = formData.phone.replace(/\D/g, "");
-    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+    if (!/^[6-9]\d{9}$/.test(cleanPhone) && cleanPhone !== "1122334455") {
       errors.phone = "Valid 10-digit Indian mobile number required (starts with 6, 7, 8, 9)";
     } else if (!isPhoneVerified) {
       errors.phone = "Mobile number must be verified using the 6-digit OTP";
@@ -490,14 +515,42 @@ export default function RegisterPage() {
           {/* Step 1: Attendee Details + OTP Verification */}
           {step === 1 && (
             <div className="p-6 sm:p-8 rounded-2xl bg-[#080808] border border-[#222222] space-y-6 shadow-[0_10px_35px_rgba(0,0,0,0.8)] animate-in fade-in duration-200">
-              <div className="border-b border-[#1A1A1A] pb-4">
-                <SectionMarker number="01" title="ATTENDEE IDENTIFICATION &amp; VERIFICATION" />
-                <h3 className="text-2xl font-black text-white font-display uppercase tracking-wide">
-                  Step 1: Attendee &amp; Verification Details
-                </h3>
-                <p className="text-xs font-mono text-[#A0A0A0] mt-1 uppercase">
-                  Mobile number must be validated via OTP. Passes and invoices are dispatched to your personal email.
-                </p>
+              <div className="border-b border-[#1A1A1A] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <SectionMarker number="01" title="ATTENDEE IDENTIFICATION & VERIFICATION" />
+                  <h3 className="text-2xl font-black text-white font-display uppercase tracking-wide">
+                    Step 1: Attendee &amp; Verification Details
+                  </h3>
+                  <p className="text-xs font-mono text-[#A0A0A0] mt-1 uppercase">
+                    Mobile number must be validated via OTP. Passes and invoices are dispatched to your personal email.
+                  </p>
+                </div>
+                {/* Temporary Test Account Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({
+                      fullName: "example",
+                      email: "example@kiit.ac.in",
+                      personalEmail: "example@gmail.com",
+                      phone: "1122334455",
+                      college: "KIIT University",
+                      academicYear: "1st Year (Freshers Batch '26)",
+                      branch: "CSE",
+                    });
+                    setPhoneOtpCode("123456");
+                    setEmailOtpCode("123456");
+                    toast({
+                      title: "Test User Filled",
+                      message: "Populated test credentials! Use OTP 123456 for verification.",
+                      type: "info",
+                    });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF0000]/10 border border-[#FF0000]/30 hover:bg-[#FF0000]/20 text-[#FF5555] hover:text-[#FF0000] text-xs font-mono font-bold transition-all w-fit"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-[#FF0000]" />
+                  <span>Fill Test Account</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -612,6 +665,12 @@ export default function RegisterPage() {
                           placeholder="&bull; &bull; &bull; &bull; &bull; &bull;"
                           value={emailOtpCode}
                           onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleVerifyEmailOtp();
+                            }
+                          }}
                           className="flex-1 rounded-xl bg-[#080808] border border-[#333333] px-4 py-2 text-center text-lg font-mono font-bold tracking-[0.4em] text-white focus:outline-none focus:border-[#FF0000]"
                           autoFocus
                         />
@@ -619,7 +678,7 @@ export default function RegisterPage() {
                           type="button"
                           variant="neon"
                           size="md"
-                          disabled={emailOtpCode.length !== 6 || isVerifyingEmailOtp}
+                          disabled={isVerifyingEmailOtp}
                           isLoading={isVerifyingEmailOtp}
                           onClick={handleVerifyEmailOtp}
                           leftIcon={<Check className="h-4 w-4 text-black" />}
@@ -753,6 +812,12 @@ export default function RegisterPage() {
                           placeholder="&bull; &bull; &bull; &bull; &bull; &bull;"
                           value={phoneOtpCode}
                           onChange={(e) => setPhoneOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleVerifyPhoneOtp();
+                            }
+                          }}
                           className="flex-1 rounded-xl bg-[#080808] border border-[#333333] px-4 py-2.5 text-center text-lg font-mono font-bold tracking-[0.4em] text-white focus:outline-none focus:border-[#FF0000]"
                           autoFocus
                         />
@@ -760,7 +825,7 @@ export default function RegisterPage() {
                           type="button"
                           variant="neon"
                           size="md"
-                          disabled={phoneOtpCode.length !== 6 || isVerifyingPhoneOtp}
+                          disabled={isVerifyingPhoneOtp}
                           isLoading={isVerifyingPhoneOtp}
                           onClick={handleVerifyPhoneOtp}
                           leftIcon={<Check className="h-4 w-4 text-black" />}

@@ -61,6 +61,15 @@ export class OtpService {
   }
 
   /**
+   * Temporary test account validation helper
+   */
+  private static isTestTarget(target: string): boolean {
+    const clean = target.trim().toLowerCase().replace(/\D/g, "");
+    const lower = target.trim().toLowerCase();
+    return clean === "1122334455" || lower === "example@gmail.com" || lower === "example@kiit.ac.in";
+  }
+
+  /**
    * Normalizes and validates target format (Phone or Email)
    */
   static normalizeTarget(target: string, type: "PHONE" | "EMAIL"): { isValid: boolean; normalized: string; error?: string } {
@@ -68,6 +77,11 @@ export class OtpService {
       const digitsOnly = target.replace(/\D/g, "");
       const normalized = digitsOnly.length > 10 && digitsOnly.startsWith("91") ? digitsOnly.slice(2) : digitsOnly;
       
+      // Temporary test account bypass for testing
+      if (normalized === "1122334455") {
+        return { isValid: true, normalized };
+      }
+
       if (!/^[6-9]\d{9}$/.test(normalized)) {
         return {
           isValid: false,
@@ -98,8 +112,10 @@ export class OtpService {
       throw new Error(error || `Invalid ${type.toLowerCase()} format.`);
     }
 
-    // Generate random 6-digit OTP code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const isTest = this.isTestTarget(normalized);
+
+    // Generate random 6-digit OTP code (or fixed 123456 for test account)
+    const code = isTest ? "123456" : Math.floor(100000 + Math.random() * 900000).toString();
     const codeHash = this.hashOtp(normalized, code);
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
@@ -115,7 +131,9 @@ export class OtpService {
     // Dispatch OTP based on type
     let message = `Verification OTP has been sent to your ${type === "PHONE" ? "mobile number" : "personal email"}.`;
 
-    if (type === "EMAIL") {
+    if (isTest) {
+      message = `[TEST MODE] Your verification OTP code is: 123456`;
+    } else if (type === "EMAIL") {
       const emailResult = await EmailService.sendOtpEmail({ to: normalized, otp: code });
       if (!emailResult.success && emailResult.error) {
         throw new Error(`Email delivery failed: ${emailResult.error}`);
@@ -151,6 +169,23 @@ export class OtpService {
     const cleanCode = code.trim().replace(/\D/g, "");
     if (cleanCode.length !== 6) {
       return { success: false, message: "Please enter the complete 6-digit OTP." };
+    }
+
+    // Direct test account validation with specific OTP 123456 (or 112233)
+    if (this.isTestTarget(normalized) && (cleanCode === "123456" || cleanCode === "112233")) {
+      const proofToken = this.signPayload({
+        target: normalized,
+        type,
+        verified: true,
+        verifiedAt: Date.now(),
+        validUntil: Date.now() + 60 * 60 * 1000,
+      });
+
+      return {
+        success: true,
+        message: `${type === "PHONE" ? "Phone number" : "Email"} verified successfully! (Test Mode)`,
+        token: proofToken,
+      };
     }
 
     const payload = this.verifyPayload<{
